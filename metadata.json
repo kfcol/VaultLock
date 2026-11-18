@@ -1,0 +1,6 @@
+{
+  "name": "VaultLock",
+  "description": "True hardware screen-lock focus blocker with AccessibilityService enforcement, Lock Now sessions, recurring schedules, unlimited allowlists, and quick allowed-app drawer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

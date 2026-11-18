@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">VaultLock</string>
+    <string name="accessibility_service_label">VaultLock Screen Enforcer</string>
+    <string name="accessibility_service_description">Detects when a non-allowed app opens during an active Lock Now session or Schedule, returns to the Home screen, and immediately locks the device.</string>
+    <string name="device_admin_label">VaultLock Device Guard</string>
+    <string name="device_admin_description">Allows VaultLock to lock the screen on Android 8 and below (or as a primary lock method) and prevents accidental uninstallation while active.</string>
+    <string name="notification_channel_name">Active Focus Lock</string>
+    <string name="notification_channel_description">Displays the live lock countdown and quick access to your allowed apps drawer.</string>
+    <string name="allowed_launcher_title">Allowed Apps Drawer</string>
+</resources>
