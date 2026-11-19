@@ -21,10 +21,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -37,12 +41,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -87,6 +93,7 @@ fun SchedulesScreen(
               endMinutes = 7 * 60,
               enabled = true,
               lockAtStart = true,
+              reminderMinutesBefore = 10,
             )
           showEditor = true
         },
@@ -179,6 +186,7 @@ fun SchedulesScreen(
   if (showEditor && editingSchedule != null) {
     ScheduleEditorDialog(
       initial = editingSchedule!!,
+      notificationsGranted = uiState.systemStatus.isNotificationsGranted,
       onDismiss = { showEditor = false },
       onSave = { updated ->
         onSaveSchedule(updated)
@@ -322,6 +330,25 @@ private fun ScheduleCard(
           }
         }
       }
+
+      if (schedule.reminderMinutesBefore > 0) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Icon(
+            imageVector = Icons.Filled.NotificationsActive,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.size(15.dp),
+          )
+          Text(
+            text = "Reminder ${formatReminderLabel(schedule.reminderMinutesBefore)} before lock",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary,
+          )
+        }
+      }
     }
   }
 }
@@ -330,6 +357,7 @@ private fun ScheduleCard(
 @Composable
 private fun ScheduleEditorDialog(
   initial: ScheduleEntity,
+  notificationsGranted: Boolean,
   onDismiss: () -> Unit,
   onSave: (ScheduleEntity) -> Unit,
 ) {
@@ -338,7 +366,10 @@ private fun ScheduleEditorDialog(
   var startMinutes by remember { mutableIntStateOf(initial.startMinutes) }
   var endMinutes by remember { mutableIntStateOf(initial.endMinutes) }
   var lockAtStart by remember { mutableStateOf(initial.lockAtStart) }
+  var reminderMinutesBefore by remember { mutableIntStateOf(initial.reminderMinutesBefore.coerceIn(0, 120)) }
   var pickingStart by remember { mutableStateOf<Boolean?>(null) }
+
+  val reminderPresets = listOf(0, 5, 10, 15, 30, 60)
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -349,7 +380,10 @@ private fun ScheduleEditorDialog(
       )
     },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+      Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+      ) {
         OutlinedTextField(
           value = label,
           onValueChange = { label = it },
@@ -417,6 +451,92 @@ private fun ScheduleEditorDialog(
           }
         }
 
+        // Pre-Lockdown Reminder configuration
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceContainerHigh,
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+              ) {
+                Icon(
+                  imageVector = Icons.Filled.NotificationsActive,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.secondary,
+                  modifier = Modifier.size(18.dp),
+                )
+                Text("Pre-Lock Reminder", style = MaterialTheme.typography.titleMedium)
+              }
+              Text(
+                text =
+                  if (reminderMinutesBefore == 0) "Off"
+                  else "${formatReminderLabel(reminderMinutesBefore)} before",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.testTag("reminder_value_text"),
+              )
+            }
+
+            FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              for (preset in reminderPresets) {
+                FilterChip(
+                  selected = reminderMinutesBefore == preset,
+                  onClick = { reminderMinutesBefore = preset },
+                  label = { Text(if (preset == 0) "Off" else formatReminderLabel(preset)) },
+                  modifier = Modifier.testTag("reminder_preset_$preset"),
+                )
+              }
+            }
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              IconButton(
+                onClick = { reminderMinutesBefore = (reminderMinutesBefore - 1).coerceAtLeast(0) },
+                modifier = Modifier.testTag("reminder_decrease_button"),
+              ) {
+                Icon(Icons.Filled.Remove, contentDescription = "Decrease reminder by 1 minute")
+              }
+              Slider(
+                value = reminderMinutesBefore.toFloat(),
+                onValueChange = { reminderMinutesBefore = it.roundToInt().coerceIn(0, 120) },
+                valueRange = 0f..120f,
+                modifier = Modifier.weight(1f),
+              )
+              IconButton(
+                onClick = { reminderMinutesBefore = (reminderMinutesBefore + 1).coerceAtMost(120) },
+                modifier = Modifier.testTag("reminder_increase_button"),
+              ) {
+                Icon(Icons.Filled.Add, contentDescription = "Increase reminder by 1 minute")
+              }
+            }
+
+            if (reminderMinutesBefore > 0 && !notificationsGranted) {
+              Text(
+                text = "Notifications are currently disabled — grant permission in Setup to receive alerts.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+              )
+            }
+          }
+        }
+
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,
@@ -444,6 +564,7 @@ private fun ScheduleEditorDialog(
               startMinutes = startMinutes,
               endMinutes = endMinutes,
               lockAtStart = lockAtStart,
+              reminderMinutesBefore = reminderMinutesBefore.coerceIn(0, 120),
             )
           )
         },
@@ -485,5 +606,15 @@ private fun ScheduleEditorDialog(
         TextButton(onClick = { pickingStart = null }) { Text("Cancel") }
       },
     )
+  }
+}
+
+private fun formatReminderLabel(minutes: Int): String {
+  val hrs = minutes / 60
+  val mins = minutes % 60
+  return when {
+    hrs > 0 && mins > 0 -> "${hrs}h ${mins}m"
+    hrs > 0 -> "${hrs}h"
+    else -> "${mins}m"
   }
 }

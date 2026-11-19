@@ -77,60 +77,118 @@ object ScreenLockController {
     val canExact = PermissionStatusHelper.canScheduleExactAlarms(context)
 
     for (schedule in schedules) {
-      val requestCode = scheduleRequestCode(schedule.id)
-      val intent =
-        Intent(context, BootAndAlarmReceiver::class.java).apply {
-          action = BootAndAlarmReceiver.ACTION_SCHEDULE_START_LOCK
-          putExtra(BootAndAlarmReceiver.EXTRA_SCHEDULE_ID, schedule.id)
-        }
-      val pendingIntent =
-        PendingIntent.getBroadcast(
-          context,
-          requestCode,
-          intent,
-          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      // 1. Schedule start-lock alarm
+      val startPendingIntent =
+        buildSchedulePendingIntent(
+          context = context,
+          action = BootAndAlarmReceiver.ACTION_SCHEDULE_START_LOCK,
+          requestCode = scheduleRequestCode(schedule.id),
+          scheduleId = schedule.id,
+          flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-      if (!lockAtScheduleStart || !schedule.enabled || !schedule.lockAtStart || schedule.daysMask == 0) {
-        alarmManager.cancel(pendingIntent)
-        continue
-      }
+      val nextStart =
+        if (lockAtScheduleStart && schedule.enabled && schedule.lockAtStart && schedule.daysMask != 0) {
+          LockEvaluator.computeNextStartTimeMillis(schedule, nowMillis)
+        } else {
+          null
+        }
 
-      val nextTrigger = LockEvaluator.computeNextStartTimeMillis(schedule, nowMillis)
-      if (nextTrigger == null) {
-        alarmManager.cancel(pendingIntent)
-        continue
-      }
-
-      if (canExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTrigger, pendingIntent)
-      } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTrigger, pendingIntent)
+      if (nextStart == null) {
+        alarmManager.cancel(startPendingIntent)
       } else {
-        alarmManager.set(AlarmManager.RTC_WAKEUP, nextTrigger, pendingIntent)
+        scheduleRtcAlarm(alarmManager, nextStart, startPendingIntent, canExact)
+      }
+
+      // 2. Schedule pre-lockdown reminder alarm
+      val reminderPendingIntent =
+        buildSchedulePendingIntent(
+          context = context,
+          action = BootAndAlarmReceiver.ACTION_SCHEDULE_REMINDER,
+          requestCode = reminderRequestCode(schedule.id),
+          scheduleId = schedule.id,
+          flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+      val nextReminder =
+        if (schedule.enabled && schedule.reminderMinutesBefore > 0 && schedule.daysMask != 0) {
+          LockEvaluator.computeNextReminderTimeMillis(schedule, nowMillis)
+        } else {
+          null
+        }
+
+      if (nextReminder == null) {
+        alarmManager.cancel(reminderPendingIntent)
+      } else {
+        scheduleRtcAlarm(alarmManager, nextReminder, reminderPendingIntent, canExact)
       }
     }
   }
 
   fun cancelScheduleAlarm(context: Context, scheduleId: Long) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-    val intent =
-      Intent(context, BootAndAlarmReceiver::class.java).apply {
-        action = BootAndAlarmReceiver.ACTION_SCHEDULE_START_LOCK
-        putExtra(BootAndAlarmReceiver.EXTRA_SCHEDULE_ID, scheduleId)
-      }
-    val pendingIntent =
+    val startPending =
       PendingIntent.getBroadcast(
         context,
         scheduleRequestCode(scheduleId),
-        intent,
+        Intent(context, BootAndAlarmReceiver::class.java).apply {
+          action = BootAndAlarmReceiver.ACTION_SCHEDULE_START_LOCK
+          putExtra(BootAndAlarmReceiver.EXTRA_SCHEDULE_ID, scheduleId)
+        },
         PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
       )
-    if (pendingIntent != null) {
-      alarmManager.cancel(pendingIntent)
+    if (startPending != null) {
+      alarmManager.cancel(startPending)
+    }
+
+    val reminderPending =
+      PendingIntent.getBroadcast(
+        context,
+        reminderRequestCode(scheduleId),
+        Intent(context, BootAndAlarmReceiver::class.java).apply {
+          action = BootAndAlarmReceiver.ACTION_SCHEDULE_REMINDER
+          putExtra(BootAndAlarmReceiver.EXTRA_SCHEDULE_ID, scheduleId)
+        },
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+      )
+    if (reminderPending != null) {
+      alarmManager.cancel(reminderPending)
+    }
+  }
+
+  private fun buildSchedulePendingIntent(
+    context: Context,
+    action: String,
+    requestCode: Int,
+    scheduleId: Long,
+    flags: Int,
+  ): PendingIntent {
+    val intent =
+      Intent(context, BootAndAlarmReceiver::class.java).apply {
+        this.action = action
+        putExtra(BootAndAlarmReceiver.EXTRA_SCHEDULE_ID, scheduleId)
+      }
+    return PendingIntent.getBroadcast(context, requestCode, intent, flags)
+  }
+
+  private fun scheduleRtcAlarm(
+    alarmManager: AlarmManager,
+    triggerAtMillis: Long,
+    pendingIntent: PendingIntent,
+    canExact: Boolean,
+  ) {
+    if (canExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+    } else {
+      alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
   }
 
   private fun scheduleRequestCode(scheduleId: Long): Int =
     (20_000 + (scheduleId % 50_000L)).toInt()
+
+  private fun reminderRequestCode(scheduleId: Long): Int =
+    (80_000 + (scheduleId % 50_000L)).toInt()
 }

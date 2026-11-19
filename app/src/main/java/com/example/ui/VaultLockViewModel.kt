@@ -307,7 +307,11 @@ class VaultLockViewModel(application: Application) : AndroidViewModel(applicatio
       if (active.isAnyLockActive) {
         LockSessionForegroundService.ensureRunning(app)
       }
-      _messages.tryEmit("Schedule saved.")
+      if (schedule.reminderMinutesBefore > 0 && !PermissionStatusHelper.areNotificationsGranted(app)) {
+        _messages.tryEmit("Schedule saved. Enable Notifications in Setup to receive reminders.")
+      } else {
+        _messages.tryEmit("Schedule saved.")
+      }
     }
   }
 

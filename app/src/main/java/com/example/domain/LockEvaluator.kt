@@ -100,4 +100,38 @@ object LockEvaluator {
     }
     return null
   }
+
+  fun computeNextReminderTimeMillis(schedule: ScheduleEntity, nowMillis: Long): Long? {
+    if (!schedule.enabled || schedule.daysMask == 0 || schedule.reminderMinutesBefore <= 0) {
+      return null
+    }
+    val reminderOffsetMillis = schedule.reminderMinutesBefore * 60_000L
+    val startHour = schedule.startMinutes / 60
+    val startMin = schedule.startMinutes % 60
+
+    val probe =
+      Calendar.getInstance().apply {
+        timeInMillis = nowMillis
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        set(Calendar.HOUR_OF_DAY, startHour)
+        set(Calendar.MINUTE, startMin)
+      }
+
+    for (dayOffset in 0..8) {
+      val startCandidate =
+        (probe.clone() as Calendar).apply {
+          if (dayOffset > 0) add(Calendar.DAY_OF_YEAR, dayOffset)
+        }
+      val weekday = Weekday.fromCalendarDay(startCandidate.get(Calendar.DAY_OF_WEEK))
+      val reminderTriggerMillis = startCandidate.timeInMillis - reminderOffsetMillis
+      if (
+        Weekday.isDaySelected(schedule.daysMask, weekday) &&
+          reminderTriggerMillis > nowMillis + 1_000L
+      ) {
+        return reminderTriggerMillis
+      }
+    }
+    return null
+  }
 }

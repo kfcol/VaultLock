@@ -12,6 +12,7 @@ data class ScheduleEntity(
   val endMinutes: Int,
   val enabled: Boolean = true,
   val lockAtStart: Boolean = true,
+  val reminderMinutesBefore: Int = 0,
 ) {
   val crossesMidnight: Boolean
     get() = startMinutes > endMinutes

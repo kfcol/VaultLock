@@ -167,7 +167,7 @@ fun SetupScreen(
           badge = if (status.isNotificationsGranted) "ENABLED" else "REQUIRED",
           isGranted = status.isNotificationsGranted,
           description =
-            "Shows the live Lock Now countdown and gives you one-tap access to the Allowed Apps Drawer from the lock screen.",
+            "Shows the live Lock Now countdown, upcoming schedule reminders, and one-tap access to the Allowed Apps Drawer from the lock screen.",
           actionLabel = if (status.isNotificationsGranted) "Settings" else "Grant Permission",
           testTag = "setup_notifications_button",
           onAction = {

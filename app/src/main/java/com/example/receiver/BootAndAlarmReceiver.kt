@@ -66,6 +66,18 @@ class BootAndAlarmReceiver : BroadcastReceiver() {
               lockAtScheduleStart = prefs.lockAtScheduleStart,
             )
           }
+          ACTION_SCHEDULE_REMINDER -> {
+            val scheduleId = intent.getLongExtra(EXTRA_SCHEDULE_ID, -1L)
+            val schedule = if (scheduleId > 0L) repo.getScheduleById(scheduleId) else null
+            if (schedule != null && schedule.enabled && schedule.reminderMinutesBefore > 0) {
+              com.example.service.ScheduleReminderNotifier.showReminder(context, schedule)
+            }
+            ScreenLockController.syncScheduleAlarms(
+              context = context,
+              schedules = schedules,
+              lockAtScheduleStart = prefs.lockAtScheduleStart,
+            )
+          }
         }
       } finally {
         pendingResult.finish()
@@ -75,6 +87,7 @@ class BootAndAlarmReceiver : BroadcastReceiver() {
 
   companion object {
     const val ACTION_SCHEDULE_START_LOCK = "com.example.action.SCHEDULE_START_LOCK"
+    const val ACTION_SCHEDULE_REMINDER = "com.example.action.SCHEDULE_REMINDER"
     const val EXTRA_SCHEDULE_ID = "extra_schedule_id"
   }
 }

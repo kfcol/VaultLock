@@ -6,5 +6,7 @@
     <string name="device_admin_description">Allows VaultLock to lock the screen on Android 8 and below (or as a primary lock method) and prevents accidental uninstallation while active.</string>
     <string name="notification_channel_name">Active Focus Lock</string>
     <string name="notification_channel_description">Displays the live lock countdown and quick access to your allowed apps drawer.</string>
+    <string name="reminder_channel_name">Upcoming Schedule Reminders</string>
+    <string name="reminder_channel_description">Alerts you before a scheduled phone lockdown starts.</string>
     <string name="allowed_launcher_title">Allowed Apps Drawer</string>
 </resources>

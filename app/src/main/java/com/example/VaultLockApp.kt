@@ -22,6 +22,7 @@ class VaultLockApp : Application() {
   override fun onCreate() {
     super.onCreate()
     createNotificationChannel()
+    com.example.service.ScheduleReminderNotifier.ensureChannel(this)
   }
 
   private fun createNotificationChannel() {

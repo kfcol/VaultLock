@@ -125,4 +125,32 @@ class LockEvaluatorTest {
     val disabledNext = LockEvaluator.computeNextStartTimeMillis(schedule.copy(enabled = false), now)
     assertNull(disabledNext)
   }
+
+  @Test
+  fun computeNextReminderTimeCalculatesExactLeadTimeAndSkipsPassedWindow() {
+    // Saturday 2026-11-14 at 21:40, schedule starts at 22:00 with 15m reminder -> 21:45
+    val beforeReminder = calendarAt(2026, Calendar.NOVEMBER, 14, 21, 40).timeInMillis
+    val schedule =
+      ScheduleEntity(
+        id = 5,
+        label = "Night",
+        daysMask = Weekday.SATURDAY.bit,
+        startMinutes = 22 * 60,
+        endMinutes = 7 * 60,
+        enabled = true,
+        reminderMinutesBefore = 15,
+      )
+
+    val firstReminder = LockEvaluator.computeNextReminderTimeMillis(schedule, beforeReminder)
+    assertEquals(calendarAt(2026, Calendar.NOVEMBER, 14, 21, 45).timeInMillis, firstReminder)
+
+    // At 21:50, today's 21:45 reminder already passed -> should jump to next Saturday 2026-11-21 21:45
+    val afterReminder = calendarAt(2026, Calendar.NOVEMBER, 14, 21, 50).timeInMillis
+    val nextWeekReminder = LockEvaluator.computeNextReminderTimeMillis(schedule, afterReminder)
+    assertEquals(calendarAt(2026, Calendar.NOVEMBER, 21, 21, 45).timeInMillis, nextWeekReminder)
+
+    // Reminder = 0 or disabled -> null
+    assertNull(LockEvaluator.computeNextReminderTimeMillis(schedule.copy(reminderMinutesBefore = 0), beforeReminder))
+    assertNull(LockEvaluator.computeNextReminderTimeMillis(schedule.copy(enabled = false), beforeReminder))
+  }
 }

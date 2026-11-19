@@ -21,6 +21,8 @@ class VaultLockRepository(
 
   suspend fun getEnabledSchedules(): List<ScheduleEntity> = dao.getEnabledSchedules()
 
+  suspend fun getScheduleById(id: Long): ScheduleEntity? = dao.getScheduleById(id)
+
   suspend fun getAllowedPackages(scope: AllowlistScope): Set<String> =
     dao.getAllowedPackages(scope.storageKey).toSet()
 
